@@ -4,45 +4,39 @@ import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
-import android.widget.Toast
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.Observer
 import androidx.recyclerview.widget.DefaultItemAnimator
 import androidx.recyclerview.widget.GridLayoutManager
 import demo.movie.db.kotlin.MainActivity
-import demo.movie.db.kotlin.database.DatabaseSingleton
 import demo.movie.db.kotlin.databinding.FragmentMoviedbHomeBinding
-import demo.movie.db.kotlin.network.MovieEndPoint
-import demo.movie.db.kotlin.network.RestServiceGenerator
-import demo.movie.db.kotlin.ui.home.model.Movie
 import demo.movie.db.kotlin.utils.SharedPreferencesHelper
 import demo.movie.db.kotlin.utils.SharedPreferencesKey
-import java.util.*
+import org.koin.android.viewmodel.ext.android.viewModel
 
 class HomeFragment : Fragment(), View.OnClickListener {
+
+    private val moviesViewModel by viewModel<HomeListViewModel>()
     private lateinit var bindingView: FragmentMoviedbHomeBinding
     private val adapter = MovieAdapter()
     private lateinit var sharedPreferences: SharedPreferencesHelper
-    private var packageList: List<Movie> = ArrayList<Movie>()
 
-    private val viewModel: HomeListViewModel by lazy {
-        val endPoint = RestServiceGenerator.createService(MovieEndPoint::class.java)
-        val sharedPreferencesHelper = SharedPreferencesHelper(requireContext())
-        HomeListVMFactory(HomeListRepo(endPoint), sharedPreferencesHelper, requireContext()).create(HomeListViewModel::class.java)
-    }
-
-    override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?,
-                              savedInstanceState: Bundle?): View {
+    override fun onCreateView(
+        inflater: LayoutInflater, container: ViewGroup?,
+        savedInstanceState: Bundle?
+    ): View {
         bindingView = FragmentMoviedbHomeBinding.inflate(layoutInflater, container, false)
-        bindingView.viewModel = viewModel
+        bindingView.lifecycleOwner = this
+        bindingView.viewModel = moviesViewModel
         (requireActivity() as MainActivity).supportActionBar!!.hide()
         sharedPreferences = SharedPreferencesHelper(requireContext())
 
-        if(sharedPreferences.get(SharedPreferencesKey.FIRST_TIME, false)!!) {
-            packageList = DatabaseSingleton.GetDatabase(activity)!!.movieLocalDataDAO()!!.Get() as List<Movie>
-            adapter.submitList(packageList)
+        if (sharedPreferences.get(SharedPreferencesKey.FIRST_TIME, false)!!) {
+            moviesViewModel.offlineMovieList.observe(viewLifecycleOwner, Observer {
+                adapter.submitList(it)
+            })
         } else {
-            viewModel.fetchMovieList()
+            moviesViewModel.fetchMovieList()
             sharedPreferences.put(SharedPreferencesKey.FIRST_TIME, true)
         }
 
@@ -53,20 +47,16 @@ class HomeFragment : Fragment(), View.OnClickListener {
             listMovies.adapter = adapter
         }
 
-        viewModel.showMessage.observe(viewLifecycleOwner, Observer {
-            Toast.makeText(context, it, Toast.LENGTH_SHORT).show()
+        moviesViewModel.movieList.observe(viewLifecycleOwner, Observer { movieList ->
+            adapter.submitList(movieList)
         })
 
-        viewModel.movieList.observe(viewLifecycleOwner, Observer { movieList ->
-            adapter.submitList(movieList)
-            DatabaseSingleton.GetDatabase(context)?.movieLocalDataDAO()?.AddAll(movieList)
-        })
 
         return bindingView.root
     }
 
     override fun onClick(clickedView: View) {
-        when(clickedView.id) {
+        when (clickedView.id) {
 
         }
     }
